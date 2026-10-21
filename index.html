@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lensback: instant replay for Meta glasses</title>
+<meta name="description" content="Lensback keeps the last 30 seconds from your Meta glasses. Press the button and the moment you just lived becomes a clip. Join the waitlist.">
+<meta property="og:title" content="Lensback: instant replay for Meta glasses">
+<meta property="og:description" content="Missed it? You didn't. Lensback keeps the last 30 seconds from your Meta glasses, so you can save a moment after it happens.">
+<meta property="og:image" content="https://lensback.app/icon-512.png">
+<meta name="theme-color" content="#0D0D0D">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+/* Colors and shapes match the Lensback app (Theme.swift). */
+:root{
+  --bg:#0D0D0D; --card:#1C1C1C; --stroke:#2E2E2E; --chip:#2B2B2B;
+  --text:#F5F5F5; --secondary:#9A9A9F; --accent:#FF5E40; --accent-press:#E94E31; --live:#4DD978;
+  --font:-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:400 1.0625rem/1.55 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.25rem;text-decoration:none;letter-spacing:-.01em}
+.brand img{width:34px;height:34px;border-radius:8px}
+header nav a{font-weight:600;text-decoration:none;color:var(--secondary)}
+header nav a:hover{color:var(--text)}
+
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;padding:48px 0 88px}
+h1{font-weight:800;font-size:clamp(2.6rem,6.2vw,4.6rem);line-height:1;letter-spacing:-.035em;margin:0 0 22px}
+.lede{font-size:1.2rem;line-height:1.5;color:var(--secondary);max-width:32em;margin:0 0 30px}
+.signup{display:flex;gap:10px;max-width:470px;flex-wrap:wrap}
+.signup input{flex:1 1 220px;min-width:0;font:inherit;padding:15px 16px;border-radius:14px;border:1px solid var(--stroke);background:var(--card);color:var(--text)}
+.signup input::placeholder{color:#6b6b70}
+.signup input:focus{border-color:var(--accent);outline:none}
+.signup button{font:700 1rem/1 var(--font);padding:16px 22px;border-radius:14px;border:0;background:var(--accent);color:#fff;cursor:pointer}
+.signup button:hover{background:var(--accent-press)}
+.note{font-size:.9rem;color:var(--secondary);margin:12px 0 0;min-height:1.4em}
+.note.ok{color:var(--live);font-weight:600}
+.note.err{color:var(--accent);font-weight:600}
+
+/* The lens: the app's replay buffer, drawn inside a glasses lens */
+.lens{position:relative;aspect-ratio:1.18/1;background:radial-gradient(120% 90% at 30% 20%,#262626,#141414 62%);
+  border-radius:46% 46% 42% 42% / 40% 40% 56% 56%;box-shadow:inset 0 0 0 10px #050505, inset 0 0 0 11px var(--stroke);
+  overflow:hidden}
+.lens::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.08),rgba(255,255,255,0) 38%);pointer-events:none}
+.scene{position:absolute;left:9%;right:9%;top:24%}
+.strip{position:relative;height:74px}
+.ticks{position:absolute;inset:0;display:flex;align-items:flex-end;gap:3px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 22%);mask-image:linear-gradient(90deg,transparent,#000 22%)}
+.ticks i{flex:0 0 5px;border-radius:2px;background:#4A4A4E}
+.window{position:absolute;top:-10px;bottom:-10px;right:0;width:62%;border:2px solid #5A5A5F;border-radius:12px;transition:border-color .25s,background .25s}
+.window.flash{border-color:var(--accent);background:rgba(255,94,64,.16)}
+.now{position:absolute;top:-22px;bottom:-22px;right:-1px;width:2px;background:var(--live);box-shadow:0 0 8px rgba(77,217,120,.6)}
+.labels{display:flex;justify-content:space-between;margin-top:22px;font-size:.82rem;color:var(--secondary)}
+.labels b{color:var(--text);font-weight:600}
+.clip{position:absolute;left:13%;right:13%;bottom:24%;display:flex;align-items:center;gap:12px;background:rgba(28,28,28,.92);
+  border:1px solid rgba(77,217,120,.5);border-radius:16px;padding:12px 14px;box-shadow:0 4px 12px rgba(0,0,0,.4);
+  opacity:0;transform:translateY(10px);transition:opacity .35s,transform .35s}
+.clip.show{opacity:1;transform:none}
+.clip svg{flex:0 0 22px}
+.clip strong{display:block;font-weight:600;font-size:.95rem}
+.clip span{font-size:.85rem;color:var(--secondary)}
+
+section{padding:84px 0;border-top:1px solid var(--stroke)}
+h2{font-weight:800;font-size:clamp(1.9rem,3.6vw,2.7rem);line-height:1.05;letter-spacing:-.03em;margin:0 0 14px;max-width:18em}
+.sub{color:var(--secondary);max-width:36em;margin:0 0 40px;font-size:1.1rem}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:s}
+.steps li,.promises div,.devices{background:var(--card);border:1px solid var(--stroke);border-radius:18px;padding:22px}
+.steps li{counter-increment:s}
+.steps li::before{content:counter(s);display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:1.05rem;margin-bottom:16px}
+.steps h3,.promises h3{font-weight:700;font-size:1.2rem;line-height:1.25;margin:0 0 6px}
+.steps p,.promises p{margin:0;color:var(--secondary)}
+.promises{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.promises svg{display:block;margin-bottom:14px}
+
+.status{display:grid;grid-template-columns:1.2fr 1fr;gap:56px;align-items:start}
+.status p{margin:0 0 14px;color:var(--secondary);max-width:34em}
+.devices ul{margin:0;padding:0;list-style:none}
+.devices li{padding:12px 0;border-bottom:1px solid var(--stroke);display:flex;justify-content:space-between;gap:16px}
+.devices li:last-child{border-bottom:0}
+.devices span{color:var(--secondary)}
+
+footer{padding:36px 0 48px;color:var(--secondary);font-size:.92rem;display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--stroke)}
+footer a{color:var(--secondary)}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;gap:40px;padding-top:24px}
+  .steps,.promises,.status{grid-template-columns:1fr}
+  .status{gap:32px}
+  section{padding:64px 0}
+}
+@media (max-width:560px){
+  .lens{aspect-ratio:1/1.02}
+  .scene{top:20%}
+  .labels span:first-child{display:none}
+  .clip{bottom:20%;left:11%;right:11%}
+}
+@media (max-width:420px){ .wrap{padding:0 16px} .signup button{width:100%} }
+@media (prefers-reduced-motion:reduce){ .clip,.window{transition:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="./"><img src="apple-touch-icon.png" alt="">Lensback</a>
+    <nav><a href="#waitlist">Join the waitlist</a></nav>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div>
+        <h1>Missed it? You didn't.</h1>
+        <p class="lede">Lensback keeps the last 30 seconds from your Meta glasses. When something great happens, press the button and the moment you just lived becomes a clip.</p>
+        <form class="signup" id="waitlist" novalidate>
+          <label for="email" class="sr" style="position:absolute;left:-9999px">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+          <button type="submit">Join the waitlist</button>
+        </form>
+        <p class="note" id="note" aria-live="polite">One email when Lensback launches. Nothing else.</p>
+      </div>
+
+      <div class="lens" role="img" aria-label="Illustration: a timeline of the last 30 seconds held in memory, saved as a clip when you press the button.">
+        <div class="scene" aria-hidden="true">
+          <div class="strip">
+            <div class="ticks" id="ticks"></div>
+            <div class="window" id="window"></div>
+            <div class="now"></div>
+          </div>
+          <div class="labels"><span>Erased as you go</span><span><b>Last 30 s</b> in memory</span><span>Now</span></div>
+        </div>
+        <div class="clip" id="clip" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#4DD978"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#0D0D0D" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div><strong>Saved the last 30 seconds</strong><span>In Clips and Photos</span></div>
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <h2>Like instant replay on a gaming PC, for your eyes.</h2>
+      <p class="sub">Recording usually starts after the moment. Lensback is already holding it.</p>
+      <ol class="steps">
+        <li><h3>Start Lensback</h3><p>Open the app before the game, the hike or the night out. Your glasses keep a rolling 30 seconds in your phone's memory.</p></li>
+        <li><h3>Live your life</h3><p>Older seconds are erased continuously. Nothing is saved, and nothing leaves your phone.</p></li>
+        <li><h3>Press to keep it</h3><p>Something great happened? Press the glasses' button, your phone's Action Button or the Lock Screen card. The last 30 seconds become a clip.</p></li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Your moments stay yours.</h2>
+      <p class="sub">Lensback was built to hold as little as possible, for as short a time as possible.</p>
+      <div class="promises">
+        <div><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="2" fill="none" stroke="#FF5E40" stroke-width="2"/><path d="M8 10v4M12 10v4M16 10v4" stroke="#FF5E40" stroke-width="2" stroke-linecap="round"/></svg><h3>Nothing kept until you press</h3><p>The buffer lives in memory and is overwritten every few seconds. Stopping Lensback erases it.</p></div>
+        <div><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.5" fill="none" stroke="#FF5E40" stroke-width="2"/><path d="M11 17.5h2" stroke="#FF5E40" stroke-width="2" stroke-linecap="round"/></svg><h3>No accounts, no uploads</h3><p>Clips are saved on your phone and, if you choose, to Photos. There's no Lensback server.</p></div>
+        <div><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="#FF5E40"/><circle cx="12" cy="12" r="8.5" fill="none" stroke="#FF5E40" stroke-width="2" opacity=".5"/></svg><h3>Visible to people around you</h3><p>Your glasses' capture light stays on while Lensback runs, so no one is recorded without seeing it.</p></div>
+      </div>
+    </section>
+
+    <section class="status">
+      <div>
+        <h2>Built and tested. Waiting on Meta.</h2>
+        <p>Lensback already works with simulated glasses on iPhone. Meta hasn't opened its glasses platform to public apps yet, so it can't go on the App Store today.</p>
+        <p>Join the waitlist and you'll get one email the day it's available.</p>
+      </div>
+      <div class="devices">
+        <ul>
+          <li>Ray-Ban Meta <span>Gen 1 and Gen 2</span></li>
+          <li>Oakley Meta <span>HSTN and Vanguard</span></li>
+          <li>Meta Ray-Ban Display <span>Supported</span></li>
+          <li>Phone <span>iPhone first</span></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Lensback is an independent app and is not made by or affiliated with Meta or Ray-Ban.</span>
+    <span><a href="privacy.html">Privacy</a></span>
+  </footer>
+</div>
+
+<script>
+// Paste the Tally form ID here once it exists (from tally.so/r/XXXXXX). Leave empty to show a "coming soon" note.
+const TALLY_FORM_ID = "";
+
+const form = document.getElementById('waitlist');
+const note = document.getElementById('note');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = form.email.value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    note.className = 'note err'; note.textContent = 'Enter a full email address, like you@example.com.'; form.email.focus(); return;
+  }
+  if (!TALLY_FORM_ID) {
+    note.className = 'note err'; note.textContent = 'The waitlist opens in a day or two. Check back soon.'; return;
+  }
+  // Tally pre-fills hidden fields from the URL; open the form with the email filled in.
+  window.open(`https://tally.so/r/${TALLY_FORM_ID}?email=${encodeURIComponent(email)}`, '_blank', 'noopener');
+  note.className = 'note ok'; note.textContent = 'Almost done: confirm in the window that just opened.';
+});
+
+// Signature animation: time passing, a 30 s window, a save.
+const ticks = document.getElementById('ticks');
+const win = document.getElementById('window');
+const clip = document.getElementById('clip');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function bar(){ const i=document.createElement('i'); i.style.height=(18+Math.random()*82)+'%'; return i; }
+for (let n=0;n<90;n++) ticks.appendChild(bar());
+if (!reduce) {
+  setInterval(()=>{ ticks.appendChild(bar()); if (ticks.children.length>90) ticks.firstChild.remove(); }, 180);
+  const cycle = () => {
+    win.classList.add('flash'); clip.classList.add('show');
+    setTimeout(()=>win.classList.remove('flash'), 700);
+    setTimeout(()=>clip.classList.remove('show'), 3200);
+  };
+  setTimeout(cycle, 2200); setInterval(cycle, 6500);
+} else { clip.classList.add('show'); }
+</script>
+</body>
+</html>
